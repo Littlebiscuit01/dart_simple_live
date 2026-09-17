@@ -44,18 +44,36 @@ jobs:
           echo "keyPassword=mock_password" >> simple_live_app/android/key.properties
           echo "keyAlias=mock_alias" >> simple_live_app/android/key.properties
 
-      # 2. 稳妥修复：直接修改 gradle.properties 统一 Kotlin/Java JVM 版本
-      - name: Configure Gradle Properties
+      # 2. 核心修复：生成 Init 脚本全局强制所有子项目（含插件）统一使用 JVM 17
+      - name: Create Global Gradle Init Script
         run: |
-          echo "kotlin.compiler.jvmTarget=17" >> simple_live_app/android/gradle.properties
-          echo "android.jvmTarget=17" >> simple_live_app/android/gradle.properties
+          mkdir -p ~/.gradle
+          cat << 'EOF' > ~/.gradle/init.gradle
+          allprojects {
+            afterEvaluate { project ->
+              if (project.plugins.hasPlugin('android') || project.plugins.hasPlugin('com.android.application') || project.plugins.hasPlugin('com.android.library')) {
+                project.android {
+                  compileOptions {
+                    sourceCompatibility = JavaVersion.VERSION_17
+                    targetCompatibility = JavaVersion.VERSION_17
+                  }
+                }
+              }
+              tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+                kotlinOptions {
+                  jvmTarget = "17"
+                }
+              }
+            }
+          }
+          EOF
 
       - name: Restore packages
         run: |
           cd simple_live_app
           flutter pub get
 
-      # 3. 干净的编译指令
+      # 3. 执行打包
       - name: Build APK
         run: |
           cd simple_live_app
