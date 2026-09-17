@@ -24,7 +24,7 @@ jobs:
           channel: 'stable'
           cache: true
 
-      # 优化 1：开启 Pub 依赖项缓存，避免重复拉取 Dart 包
+      # 开启 Pub 依赖项缓存
       - name: Cache Pub dependencies
         uses: actions/cache@v4
         with:
@@ -35,7 +35,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pub-
 
-      # 关键步骤：生成伪造的 key.properties 解决签名空指针报错
+      # 生成伪造的 key.properties 解决签名空指针报错
       - name: Create Mock key.properties
         run: |
           mkdir -p simple_live_app/android
@@ -49,13 +49,16 @@ jobs:
           cd simple_live_app
           flutter pub get
 
-      # 优化 2：限制 --target-platform android-arm64（极大地提升编译效率，缩减包体积）
-      # 同时保留：--android-skip-build-dependency-validation (跳过 Gradle 版本校验)
-      #           -Pandroid.jvmTarget=17 (修复 Kotlin 与 Java 17 的 JVM Target 冲突)
+      # 核心修复：强制统一全局 Kotlin 与 Java 的 JVM Target 为 17
+      - name: Fix JVM Target
+        run: |
+          echo "subprojects { afterEvaluate { if (project.hasProperty('android')) { android { compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 } } if (project.tasks.findByName('compileReleaseKotlin')) { tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach { kotlinOptions { jvmTarget = '17' } } } } }" >> simple_live_app/android/build.gradle
+
+      # 编译 arm64 APK
       - name: Build APK
         run: |
           cd simple_live_app
-          flutter build apk --release --target-platform android-arm64 --android-skip-build-dependency-validation -Pandroid.jvmTarget=17
+          flutter build apk --release --target-platform android-arm64 --android-skip-build-dependency-validation
 
       - name: Upload APK to Artifacts
         uses: actions/upload-artifact@v4
