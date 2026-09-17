@@ -6,7 +6,6 @@ on:
 jobs:
   build-android:
     runs-on: ubuntu-latest
-
     permissions:
       contents: write
 
@@ -15,14 +14,14 @@ jobs:
 
       - uses: actions/setup-java@v4
         with:
-          distribution: "zulu"
-          java-version: "17"
-          cache: "gradle"
+          distribution: zulu
+          java-version: '17'
+          cache: gradle
 
       - name: Flutter action
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.27.x"
+          flutter-version: '3.27.x'
           cache: true
 
       - name: Restore packages
@@ -40,5 +39,3 @@ jobs:
         with:
           name: android-apk
           path: simple_live_app/build/app/outputs/flutter-apk/*.apk
-
-      - run: echo "🍏 Android build job status: ${{ job.status }}."
