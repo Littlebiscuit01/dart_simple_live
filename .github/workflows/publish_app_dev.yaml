@@ -24,6 +24,15 @@ jobs:
           channel: 'stable'
           cache: true
 
+      # 关键步骤：生成伪造的 key.properties 解决 null 类型强转报错
+      - name: Create Mock key.properties
+        run: |
+          mkdir -p simple_live_app/android
+          echo "storeFile=keystore.jks" > simple_live_app/android/key.properties
+          echo "storePassword=mock_password" >> simple_live_app/android/key.properties
+          echo "keyPassword=mock_password" >> simple_live_app/android/key.properties
+          echo "keyAlias=mock_alias" >> simple_live_app/android/key.properties
+
       - name: Restore packages
         run: |
           cd simple_live_app
