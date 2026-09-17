@@ -24,7 +24,18 @@ jobs:
           channel: 'stable'
           cache: true
 
-      # 关键步骤：生成伪造的 key.properties 解决 null 类型强转报错
+      # 优化 1：开启 Pub 依赖项缓存，避免重复拉取 Dart 包
+      - name: Cache Pub dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+            simple_live_app/.dart_tool
+          key: ${{ runner.os }}-pub-${{ hashFiles('simple_live_app/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-
+
+      # 关键步骤：生成伪造的 key.properties 解决签名空指针报错
       - name: Create Mock key.properties
         run: |
           mkdir -p simple_live_app/android
@@ -38,10 +49,13 @@ jobs:
           cd simple_live_app
           flutter pub get
 
+      # 优化 2：限制 --target-platform android-arm64（极大地提升编译效率，缩减包体积）
+      # 同时保留：--android-skip-build-dependency-validation (跳过 Gradle 版本校验)
+      #           -Pandroid.jvmTarget=17 (修复 Kotlin 与 Java 17 的 JVM Target 冲突)
       - name: Build APK
         run: |
           cd simple_live_app
-          flutter build apk --release --android-skip-build-dependency-validation
+          flutter build apk --release --target-platform android-arm64 --android-skip-build-dependency-validation -Pandroid.jvmTarget=17
 
       - name: Upload APK to Artifacts
         uses: actions/upload-artifact@v4
