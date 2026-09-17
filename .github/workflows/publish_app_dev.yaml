@@ -24,7 +24,7 @@ jobs:
           channel: 'stable'
           cache: true
 
-      # 开启 Pub 依赖项缓存
+      # 速度优化 1：缓存 Dart/Pub 依赖
       - name: Cache Pub dependencies
         uses: actions/cache@v4
         with:
@@ -35,7 +35,18 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pub-
 
-      # 1. 生成伪造的 key.properties 解决签名空指针报错
+      # 速度优化 2：缓存 Gradle 原生依赖（避免重复下载 libmpv jar 等核心文件）
+      - name: Cache Gradle dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      # 关键步骤：伪造签名文件
       - name: Create Mock key.properties
         run: |
           mkdir -p simple_live_app/android
@@ -44,40 +55,20 @@ jobs:
           echo "keyPassword=mock_password" >> simple_live_app/android/key.properties
           echo "keyAlias=mock_alias" >> simple_live_app/android/key.properties
 
-      # 2. 核心修复：生成 Init 脚本全局强制所有子项目（含插件）统一使用 JVM 17
-      - name: Create Global Gradle Init Script
-        run: |
-          mkdir -p ~/.gradle
-          cat << 'EOF' > ~/.gradle/init.gradle
-          allprojects {
-            afterEvaluate { project ->
-              if (project.plugins.hasPlugin('android') || project.plugins.hasPlugin('com.android.application') || project.plugins.hasPlugin('com.android.library')) {
-                project.android {
-                  compileOptions {
-                    sourceCompatibility = JavaVersion.VERSION_17
-                    targetCompatibility = JavaVersion.VERSION_17
-                  }
-                }
-              }
-              tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
-                kotlinOptions {
-                  jvmTarget = "17"
-                }
-              }
-            }
-          }
-          EOF
-
       - name: Restore packages
         run: |
           cd simple_live_app
           flutter pub get
 
-      # 3. 执行打包
+      # 核心构建：同时注入 Java 17 与 Kotlin JVM 17 参数，跳过校验，仅打 arm64 架构
       - name: Build APK
         run: |
           cd simple_live_app
-          flutter build apk --release --target-platform android-arm64 --android-skip-build-dependency-validation
+          flutter build apk --release \
+            --target-platform android-arm64 \
+            --android-skip-build-dependency-validation \
+            -Pandroid.jvmTarget=17 \
+            -Pkotlin.compiler.jvmTarget=17
 
       - name: Upload APK to Artifacts
         uses: actions/upload-artifact@v4
