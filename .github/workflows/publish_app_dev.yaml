@@ -35,7 +35,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pub-
 
-      # 生成伪造的 key.properties 解决签名空指针报错
+      # 1. 生成伪造的 key.properties 解决签名空指针报错
       - name: Create Mock key.properties
         run: |
           mkdir -p simple_live_app/android
@@ -44,17 +44,18 @@ jobs:
           echo "keyPassword=mock_password" >> simple_live_app/android/key.properties
           echo "keyAlias=mock_alias" >> simple_live_app/android/key.properties
 
+      # 2. 稳妥修复：直接修改 gradle.properties 统一 Kotlin/Java JVM 版本
+      - name: Configure Gradle Properties
+        run: |
+          echo "kotlin.compiler.jvmTarget=17" >> simple_live_app/android/gradle.properties
+          echo "android.jvmTarget=17" >> simple_live_app/android/gradle.properties
+
       - name: Restore packages
         run: |
           cd simple_live_app
           flutter pub get
 
-      # 核心修复：强制统一全局 Kotlin 与 Java 的 JVM Target 为 17
-      - name: Fix JVM Target
-        run: |
-          echo "subprojects { afterEvaluate { if (project.hasProperty('android')) { android { compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 } } if (project.tasks.findByName('compileReleaseKotlin')) { tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach { kotlinOptions { jvmTarget = '17' } } } } }" >> simple_live_app/android/build.gradle
-
-      # 编译 arm64 APK
+      # 3. 干净的编译指令
       - name: Build APK
         run: |
           cd simple_live_app
