@@ -24,7 +24,7 @@ jobs:
           channel: 'stable'
           cache: true
 
-      # 速度优化 1：缓存 Dart/Pub 依赖
+      # 1. 缓存 Pub 依赖
       - name: Cache Pub dependencies
         uses: actions/cache@v4
         with:
@@ -35,7 +35,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pub-
 
-      # 速度优化 2：缓存 Gradle 原生依赖（跳过重复下载 libmpv jar 等文件）
+      # 2. 缓存 Gradle 依赖包 (加速 libmpv 等大文件复用)
       - name: Cache Gradle dependencies
         uses: actions/cache@v4
         with:
@@ -46,28 +46,22 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      # 伪造签名配置
-      - name: Create Mock key.properties
+      # 3. 注入签名 Mock + 忽略 Kotlin JVM 目标校验
+      - name: Prepare Build Environment
         run: |
           mkdir -p simple_live_app/android
           echo "storeFile=keystore.jks" > simple_live_app/android/key.properties
           echo "storePassword=mock_password" >> simple_live_app/android/key.properties
           echo "keyPassword=mock_password" >> simple_live_app/android/key.properties
           echo "keyAlias=mock_alias" >> simple_live_app/android/key.properties
+          echo "kotlin.jvm.target.validation.mode=IGNORE" >> simple_live_app/android/gradle.properties
 
-      # 还原第三方 Pub 依赖包
       - name: Restore packages
         run: |
           cd simple_live_app
           flutter pub get
 
-      # 核心修复：直接修改已下载的第三方插件中的 VERSION_1.8 为 VERSION_17，强行对齐 JVM Target
-      - name: Patch Third-party Plugins JVM Target
-        run: |
-          find ~/.pub-cache/hosted/ -name "build.gradle" -exec sed -i 's/JavaVersion.VERSION_1_8/JavaVersion.VERSION_17/g' {} +
-          find ~/.pub-cache/hosted/ -name "build.gradle" -exec sed -i 's/VERSION_1_8/VERSION_17/g' {} +
-
-      # 编译 APK（仅打包 arm64，跳过 Gradle 校验）
+      # 4. 干净的编译指令
       - name: Build APK
         run: |
           cd simple_live_app
