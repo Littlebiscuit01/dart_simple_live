@@ -35,7 +35,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pub-
 
-      # 2. 缓存 Gradle 依赖包 (加速 libmpv 等大文件复用)
+      # 2. 缓存 Gradle 依赖包 (复用 libmpv 等文件)
       - name: Cache Gradle dependencies
         uses: actions/cache@v4
         with:
@@ -46,14 +46,24 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      # 3. 注入签名 Mock + 忽略 Kotlin JVM 目标校验
+      # 3. 生成真正的 Mock 签名文件 (.jks) + key.properties + 忽略 Kotlin JVM 校验
       - name: Prepare Build Environment
         run: |
-          mkdir -p simple_live_app/android
+          mkdir -p simple_live_app/android/app
+          
+          # 生成伪造的 keystore.jks 文件，避免签名文件缺失报错
+          keytool -genkey -v -keystore simple_live_app/android/app/keystore.jks \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -alias mock_alias -storepass mock_password -keypass mock_password \
+            -dname "CN=Mock, OU=Mock, O=Mock, L=Mock, ST=Mock, C=CN"
+          
+          # 生成配合的 key.properties 配置文件
           echo "storeFile=keystore.jks" > simple_live_app/android/key.properties
           echo "storePassword=mock_password" >> simple_live_app/android/key.properties
           echo "keyPassword=mock_password" >> simple_live_app/android/key.properties
           echo "keyAlias=mock_alias" >> simple_live_app/android/key.properties
+          
+          # 关闭 Kotlin 目标版本严格校验
           echo "kotlin.jvm.target.validation.mode=IGNORE" >> simple_live_app/android/gradle.properties
 
       - name: Restore packages
@@ -61,7 +71,7 @@ jobs:
           cd simple_live_app
           flutter pub get
 
-      # 4. 干净的编译指令
+      # 4. 执行编译
       - name: Build APK
         run: |
           cd simple_live_app
